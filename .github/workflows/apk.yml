@@ -4,9 +4,6 @@ env:
   main_project_module: app
 
 on:
-  push:
-    branches:
-      - "**" # Akan otomatis jalan di branch apa saja setiap kamu melakukan push/perubahan kode
   workflow_dispatch:
 
 jobs:
