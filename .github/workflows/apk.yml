@@ -2,45 +2,19 @@ name: Generate APK
 
 env:
   main_project_module: app
-  target_owner: Xposed-Modules-Repo
-  target_repo: io.github.jqssun.maceditor
-  target_path: target_path
 
 on:
   push:
     branches:
-      - "release/**"
-    tags:
-      - "v*.*.*"
+      - "**" # Akan otomatis jalan di branch apa saja setiap kamu melakukan push/perubahan kode
   workflow_dispatch:
-    inputs:
-      version:
-        description: "v*.*.*"
-        required: true
-        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set TAG
-        if: github.event_name == 'push'
-        run: |
-          echo "version=$(echo '${{ github.ref_name }}' | awk -F 'v' '{print $2}')" >> $GITHUB_ENV
-
-      - name: Set TAG
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "version=$(echo '${{ inputs.version }}' | awk -F 'v' '{print $2}')" >> $GITHUB_ENV
-
-      - name: Set ENV
-        run: |
-          echo "date_today=$(date +'%Y-%m-%d')" >> $GITHUB_ENV;
-          echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Use JDK
         uses: actions/setup-java@v4
@@ -49,47 +23,17 @@ jobs:
           java-version: "21"
           cache: "gradle"
 
-      - name: Build
+      - name: Build APK
         run: |
-          echo ${{ secrets.STORE }} | base64 -d > upload.jks
-          echo ${{ secrets.LOCAL }} | base64 -d > local.properties
-          chmod +x ./gradlew;
+          chmod +x ./gradlew
           ./gradlew assembleRelease --stacktrace
-          rm upload.jks local.properties
+        # Catatan: Bagian echo secrets.STORE saya hapus untuk menghindari error 
+        # jika kamu tidak memiliki file keystore di repositori ini.
 
-      - name: Publish (GitHub)
-        uses: softprops/action-gh-release@v2
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: v${{ env.version }}
-          tag_name: v${{ env.version }}
-          files: |
-            ${{ env.main_project_module }}/build/outputs/apk/release/app-release.apk
-
-      - name: Publish (Xposed)
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.PAT }}
-          repository: ${{ env.target_owner }}/${{ env.target_repo }}
-          name: v${{ env.version }}
-          tag_name: v${{ env.version }}
-          files: |
-            ${{ env.main_project_module }}/build/outputs/apk/release/app-release.apk
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.target_owner }}/${{ env.target_repo }}
-          path: ${{ env.target_path }}
-          token: ${{ secrets.PAT }}
-
-      - name: Sync
-        run: |
-          cd ${{ env.target_path }}
-          cp ../README.md ../LICENSE .
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add README.md
-          git add LICENSE
-          git commit --amend --no-edit
-          git push --force
+          name: Hasil-Build-APK
+          # Menggunakan wildcard (**/*.apk) agar otomatis menangkap 
+          # app-release.apk ataupun app-release-unsigned.apk
+          path: ${{ env.main_project_module }}/build/outputs/apk/**/*.apk
