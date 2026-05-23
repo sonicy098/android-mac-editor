@@ -100,6 +100,8 @@ class MainActivity : AppCompatActivity() {
             if (selectedItem.isNotEmpty() && selectedItem.contains(" - ")) {
                 val name = selectedItem.substringBeforeLast(" - ")
                 _deleteMacFromStorage(name)
+            } else {
+                Snackbar.make(binding.root, "Pilih MAC dari dropdown terlebih dahulu!", Snackbar.LENGTH_SHORT).show()
             }
         }
     }
@@ -117,12 +119,15 @@ class MainActivity : AppCompatActivity() {
             val key = keys.next()
             val value = jsonObject.getString(key)
             savedMacMap[key] = value
-            // Gabungkan Nama dan MAC untuk ditampilkan di dropdown
             displayList.add("$key - $value") 
         }
         
         displayList.sort()
-        dropdownAdapter.notifyDataSetChanged()
+        
+        // CARA PALING AMPUH: Alih-alih notifyDataSetChanged(), kita inisialisasi ulang adapternya
+        // agar AutoCompleteTextView mereset cache filternya secara paksa.
+        dropdownAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, displayList)
+        (binding.dropdownSavedMacs as? android.widget.AutoCompleteTextView)?.setAdapter(dropdownAdapter)
     }
 
     private fun _saveMacToStorage(name: String, mac: String) {
@@ -130,12 +135,19 @@ class MainActivity : AppCompatActivity() {
         val jsonString = prefs.getString("saved_macs_json", "{}") ?: "{}"
         val jsonObject = JSONObject(jsonString)
 
-        jsonObject.put(name, mac) // Simpan pasangan Key (Nama) dan Value (MAC)
+        jsonObject.put(name, mac) 
         prefs.edit().putString("saved_macs_json", jsonObject.toString()).apply()
 
-        _refreshDropdownData()
-        binding.edittextMacName.text?.clear()
-        Snackbar.make(binding.root, "MAC '$name' disimpan", Snackbar.LENGTH_SHORT).show()
+        _refreshDropdownData() // Refresh list terbaru
+        
+        // Kosongkan nama dengan aman
+        binding.edittextMacName.setText("") 
+        
+        // Opsional: Kosongkan dropdown agar tidak menampilkan sisa teks yang salah
+        binding.dropdownSavedMacs.setText("", false)
+        binding.dropdownSavedMacs.clearFocus()
+
+        Snackbar.make(binding.root, "MAC '$name' berhasil disimpan", Snackbar.LENGTH_SHORT).show()
     }
 
     private fun _deleteMacFromStorage(name: String) {
@@ -143,15 +155,26 @@ class MainActivity : AppCompatActivity() {
         val jsonString = prefs.getString("saved_macs_json", "{}") ?: "{}"
         val jsonObject = JSONObject(jsonString)
 
+        // Cek dulu apakah datanya benar-benar ada untuk mencegah crash
         if (jsonObject.has(name)) {
             jsonObject.remove(name)
             prefs.edit().putString("saved_macs_json", jsonObject.toString()).apply()
             
             _refreshDropdownData()
-            binding.dropdownSavedMacs.text?.clear() // Kosongkan pilihan di dropdown
-            Snackbar.make(binding.root, "MAC '$name' dihapus", Snackbar.LENGTH_SHORT).show()
+            
+            // PENTING: Gunakan setText("", false) agar tidak memicu filter pencarian error
+            binding.dropdownSavedMacs.setText("", false) 
+            binding.dropdownSavedMacs.clearFocus()
+            
+            Snackbar.make(binding.root, "MAC '$name' berhasil dihapus", Snackbar.LENGTH_SHORT).show()
+        } else {
+            // Jika user menekan Delete berkali-kali secara cepat
+            _refreshDropdownData()
+            binding.dropdownSavedMacs.setText("", false)
+            Snackbar.make(binding.root, "Item tersebut sudah tidak ada", Snackbar.LENGTH_SHORT).show()
         }
     }
+
     private fun _refreshAll() {
         updatingUI = true
         _updateStatusCard()
