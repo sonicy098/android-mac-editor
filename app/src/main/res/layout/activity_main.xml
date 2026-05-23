@@ -193,18 +193,53 @@
                         android:text="@string/new_mac"
                         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edittext_new_mac"
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:digits="abcdefABCDEF1234567890:"
-                        android:gravity="center"
-                        android:inputType="textNoSuggestions"
-                        android:layoutDirection="ltr"
-                        android:maxLength="17"
-                        android:singleLine="true"
-                        android:typeface="monospace" />
+                        android:layout_marginBottom="8dp"
+                        app:hintEnabled="false">
 
+                        <AutoCompleteTextView
+                            android:id="@+id/edittext_new_mac"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:digits="abcdefABCDEF1234567890:"
+                            android:gravity="center"
+                            android:inputType="textNoSuggestions"
+                            android:layoutDirection="ltr"
+                            android:maxLength="17"
+                            android:singleLine="true"
+                            android:typeface="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_save_mac_to_list"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="Save to List" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_delete_mac_from_list"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:text="Delete"
+                            android:textColor="?attr/colorError"
+                            app:strokeColor="?attr/colorError" />
+                    </LinearLayout>
+                    
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_generate_mac"
                         android:layout_width="match_parent"
