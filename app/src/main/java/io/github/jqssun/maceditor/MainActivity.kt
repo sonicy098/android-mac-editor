@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.widget.ArrayAdapter
+import org.json.JSONObject
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputFilter
@@ -19,6 +21,9 @@ import io.github.jqssun.maceditor.utils.PrefManager
 import io.github.jqssun.maceditor.utils.XposedChecker
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var dropdownAdapter: ArrayAdapter<String>
+    private var savedMacMap = mutableMapOf<String, String>()
+    private var displayList = mutableListOf<String>()
     private lateinit var binding: ActivityMainBinding
     private var updatingUI = false
 
@@ -37,6 +42,7 @@ class MainActivity : AppCompatActivity() {
 
         _setupToggles()
         _setupMacCard()
+        _setupMacDropdown()
         binding.footerNote.text = getString(R.string.footer_note, getString(R.string.force_mac_randomization_label))
 
         PrefManager.loadPrefs { runOnUiThread { _refreshAll() } }
@@ -59,6 +65,93 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(macReceiver)
     }
 
+    // Panggil fungsi ini di dalam onCreate(), tepat di bawah _setupMacCard()
+    private fun _setupMacDropdown() {
+        dropdownAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, displayList)
+        (binding.dropdownSavedMacs as? android.widget.AutoCompleteTextView)?.setAdapter(dropdownAdapter)
+
+        _refreshDropdownData()
+
+        // Saat item di dropdown dipilih, pindahkan MAC-nya ke input utama
+        binding.dropdownSavedMacs.setOnItemClickListener { _, _, position, _ ->
+            val selectedDisplay = displayList[position]
+            // Format yang ditampilkan adalah "Nama - 00:11:22:..."
+            val mac = selectedDisplay.substringAfterLast(" - ")
+            binding.edittextNewMac.setText(mac)
+        }
+
+        binding.btnSaveMacToList.setOnClickListener {
+            val mac = binding.edittextNewMac.text.toString().uppercase()
+            var name = binding.edittextMacName.text.toString().trim()
+
+            if (MacUtils.validate(mac) != MacUtils.ValidationResult.VALID) {
+                _showError(getString(R.string.error_bad_length))
+                return@setOnClickListener
+            }
+            if (name.isEmpty()) {
+                name = "Unnamed MAC" // Default nama jika dikosongkan
+            }
+
+            _saveMacToStorage(name, mac)
+        }
+
+        binding.btnDeleteMacFromList.setOnClickListener {
+            val selectedItem = binding.dropdownSavedMacs.text.toString()
+            if (selectedItem.isNotEmpty() && selectedItem.contains(" - ")) {
+                val name = selectedItem.substringBeforeLast(" - ")
+                _deleteMacFromStorage(name)
+            }
+        }
+    }
+
+    private fun _refreshDropdownData() {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        val jsonString = prefs.getString("saved_macs_json", "{}") ?: "{}"
+        val jsonObject = JSONObject(jsonString)
+
+        savedMacMap.clear()
+        displayList.clear()
+
+        val keys = jsonObject.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = jsonObject.getString(key)
+            savedMacMap[key] = value
+            // Gabungkan Nama dan MAC untuk ditampilkan di dropdown
+            displayList.add("$key - $value") 
+        }
+        
+        displayList.sort()
+        dropdownAdapter.notifyDataSetChanged()
+    }
+
+    private fun _saveMacToStorage(name: String, mac: String) {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        val jsonString = prefs.getString("saved_macs_json", "{}") ?: "{}"
+        val jsonObject = JSONObject(jsonString)
+
+        jsonObject.put(name, mac) // Simpan pasangan Key (Nama) dan Value (MAC)
+        prefs.edit().putString("saved_macs_json", jsonObject.toString()).apply()
+
+        _refreshDropdownData()
+        binding.edittextMacName.text?.clear()
+        Snackbar.make(binding.root, "MAC '$name' disimpan", Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun _deleteMacFromStorage(name: String) {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        val jsonString = prefs.getString("saved_macs_json", "{}") ?: "{}"
+        val jsonObject = JSONObject(jsonString)
+
+        if (jsonObject.has(name)) {
+            jsonObject.remove(name)
+            prefs.edit().putString("saved_macs_json", jsonObject.toString()).apply()
+            
+            _refreshDropdownData()
+            binding.dropdownSavedMacs.text?.clear() // Kosongkan pilihan di dropdown
+            Snackbar.make(binding.root, "MAC '$name' dihapus", Snackbar.LENGTH_SHORT).show()
+        }
+    }
     private fun _refreshAll() {
         updatingUI = true
         _updateStatusCard()
