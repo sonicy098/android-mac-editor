@@ -19,6 +19,8 @@ import io.github.jqssun.maceditor.utils.PrefManager
 import io.github.jqssun.maceditor.utils.XposedChecker
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var macAdapter: ArrayAdapter<String>
+    private var savedMacList = mutableListOf<String>()
     private lateinit var binding: ActivityMainBinding
     private var updatingUI = false
 
@@ -37,6 +39,7 @@ class MainActivity : AppCompatActivity() {
 
         _setupToggles()
         _setupMacCard()
+        _setupMacDropdown()
         binding.footerNote.text = getString(R.string.footer_note, getString(R.string.force_mac_randomization_label))
 
         PrefManager.loadPrefs { runOnUiThread { _refreshAll() } }
@@ -57,6 +60,65 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         unregisterReceiver(macReceiver)
+    }
+
+    private fun _setupMacDropdown() {
+        // Inisialisasi Adapter (Read)
+        macAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, savedMacList)
+        (binding.edittextNewMac as? android.widget.AutoCompleteTextView)?.setAdapter(macAdapter)
+
+        _refreshDropdownData()
+
+        // Logika Create / Update (Menyimpan atau menimpa ke dalam Set)
+        binding.btnSaveMacToList.setOnClickListener {
+            val currentMac = binding.edittextNewMac.text.toString().uppercase()
+            if (MacUtils.validate(currentMac) == MacUtils.ValidationResult.VALID) {
+                _saveMacToStorage(currentMac)
+            } else {
+                _showError(getString(R.string.error_bad_length)) // atau pesan error spesifik
+            }
+        }
+
+        // Logika Delete
+        binding.btnDeleteMacFromList.setOnClickListener {
+            val currentMac = binding.edittextNewMac.text.toString().uppercase()
+            _deleteMacFromStorage(currentMac)
+        }
+    }
+
+    private fun _refreshDropdownData() {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        val set = prefs.getStringSet("saved_mac_list", emptySet()) ?: emptySet()
+        
+        savedMacList.clear()
+        savedMacList.addAll(set.toList().sorted())
+        macAdapter.notifyDataSetChanged()
+    }
+
+    private fun _saveMacToStorage(mac: String) {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        // Ambil set yang ada, convert ke MutableSet untuk dimodifikasi
+        val set = prefs.getStringSet("saved_mac_list", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        
+        set.add(mac)
+        prefs.edit().putStringSet("saved_mac_list", set).apply()
+        
+        _refreshDropdownData()
+        Snackbar.make(binding.root, "MAC Address disimpan ke daftar", Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun _deleteMacFromStorage(mac: String) {
+        val prefs = getSharedPreferences("MacEditorPrefs", MODE_PRIVATE)
+        val set = prefs.getStringSet("saved_mac_list", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        
+        if (set.remove(mac)) {
+            prefs.edit().putStringSet("saved_mac_list", set).apply()
+            _refreshDropdownData()
+            binding.edittextNewMac.text?.clear()
+            Snackbar.make(binding.root, "MAC Address dihapus dari daftar", Snackbar.LENGTH_SHORT).show()
+        } else {
+            Snackbar.make(binding.root, "MAC Address tidak ditemukan di daftar", Snackbar.LENGTH_SHORT).show()
+        }
     }
 
     private fun _refreshAll() {
